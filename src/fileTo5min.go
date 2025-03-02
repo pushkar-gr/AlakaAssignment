@@ -8,6 +8,7 @@ import (
   "time"
   "encoding/csv"
   "path"
+  "strings"
 
   "github.com/parquet-go/parquet-go"
 )
@@ -45,7 +46,7 @@ func main() {
   defer rf.Close()
 
   //open or create csv file to write data
-  csvPath := csvDir + path.Base(filePath)
+  csvPath := csvDir + fileName(filePath) + ".csv"
   csvFile, err := os.OpenFile(csvPath, os.O_CREATE|os.O_WRONLY, 0644)
   if err != nil {
     log.Fatalf("Error opening file %v\n%v", csvPath, err)
@@ -160,4 +161,15 @@ func getTimeRange(day string) (int64, int64, error) {
   }
 
   return start.Unix(), end.Unix(), nil
+}
+
+//input: filePath
+//output: filename without any extenstions
+func fileName(filePath string) string {
+  fileExt := path.Ext(filePath)
+  for fileExt != "" {
+    filePath = strings.TrimSuffix(path.Base(filePath), fileExt)
+    fileExt = path.Ext(filePath)
+  }
+  return filePath
 }
