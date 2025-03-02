@@ -8,6 +8,7 @@ import (
   "encoding/csv"
   "path"
   "strings"
+  "math"
 
   "github.com/parquet-go/parquet-go"
 )
@@ -23,21 +24,21 @@ type Candle struct {
 }
 
 //input: filePath, csvDir to write, day 
-//output: error if any
+//output: R1, R2, R3, S1, S3, S3 and error if any
 //process the parquet file and wirte data to csv
-func ConvertTo5minCandle(filePath, csvDir, day string) error {
+func ConvertTo5minCandle(filePath, csvDir, day string) (float64, float64, float64, float64, float64, float64, error) {
   //get timeDate range to read data in
   start, end, err := getTimeRange(day)
   if err != nil {
     err = fmt.Errorf("Error parsing date %v\n%v", day, err)
-    return err
+    return 0, 0, 0, 0, 0, 0, err
   }
 
   //open file
   rf, err := os.Open(filePath)
   if err != nil {
     err = fmt.Errorf("Error opening file %v\n%v", filePath, err)
-    return err
+    return 0, 0, 0, 0, 0, 0, err
   }
   defer rf.Close()
 
@@ -46,7 +47,7 @@ func ConvertTo5minCandle(filePath, csvDir, day string) error {
   csvFile, err := os.OpenFile(csvPath, os.O_CREATE|os.O_WRONLY, 0644)
   if err != nil {
     err = fmt.Errorf("Error opening file %v\n%v", csvPath, err)
-    return err
+    return 0, 0, 0, 0, 0, 0, err
   }
   defer csvFile.Close()
 
@@ -60,6 +61,9 @@ func ConvertTo5minCandle(filePath, csvDir, day string) error {
 
   //process data
   EOF := false
+  //values for fib pivot
+  var high, low, closeValue float32 = 0, math.MaxFloat32, 0
+
   for {
     //5 min candle
     var candle Candle
@@ -71,21 +75,47 @@ func ConvertTo5minCandle(filePath, csvDir, day string) error {
         break
       } else if err != nil {
         err = fmt.Errorf("Error reading row \n%v", err)
-        return err
+        return 0, 0, 0, 0, 0, 0, err
       }
     }
     //break if EOF is reached
     if EOF {
       break
     }
+    //update values for pivot
+    if candle.High > high {
+      high = candle.High
+    }
+    if candle.Low < low {
+      low = candle.Low
+    }
+    closeValue = candle.Close
+
     //write data to csv
     err := csvW.Write(toString(&candle))
     if err != nil {
       err = fmt.Errorf("Error writing record to csv \n%v", err)
-      return err
+      return 0, 0, 0, 0, 0, 0, err
     }
   }
-  return nil
+
+  //calculate R1, R2, R3, S1, S2, S3
+  var P float64 = float64(high + low + closeValue) / 3
+  var DiffHighLow float64 = float64(high - low)
+
+  R1 := P + 0.382 * DiffHighLow
+  
+  R2 := P + 0.618 * DiffHighLow
+
+  R3 := P + DiffHighLow
+
+  S1 := P - 0.382 * DiffHighLow
+
+  S2 := P - 0.618 * DiffHighLow
+  
+  S3 := P - DiffHighLow
+
+  return R1, R2, R3, S1, S2, S3, nil
 }
 
 //input: candle
