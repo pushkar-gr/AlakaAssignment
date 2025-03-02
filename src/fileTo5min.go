@@ -1,8 +1,7 @@
-package main
+package src
 
 import (
   "fmt"
-  "log"
   "io"
   "os"
   "time"
@@ -12,13 +11,6 @@ import (
 
   "github.com/parquet-go/parquet-go"
 )
-
-//path of file to read
-const filePath = "data/candles/BANKNIFTY/2024-01-10/46900PE.parquet.gz"
-//path to store csv file
-const csvDir = "5min_candles/"
-//day of data to be processed
-const day = "2024-01-10"
 
 //Candle structure
 type Candle struct {
@@ -30,18 +22,22 @@ type Candle struct {
   Volume int32 `parquet:"volume"` //volume of candle
 }
 
-func main() {
+//input: filePath, csvDir to write, day 
+//output: error if any
+//process the parquet file and wirte data to csv
+func ConvertTo5minCandle(filePath, csvDir, day string) error {
   //get timeDate range to read data in
   start, end, err := getTimeRange(day)
   if err != nil {
-    log.Fatalf("Error parsing date %v\n%v", day, err)
+    err = fmt.Errorf("Error parsing date %v\n%v", day, err)
+    return err
   }
 
   //open file
   rf, err := os.Open(filePath)
   if err != nil {
-    log.Fatalf("Error opening file %v\n%v", filePath, err)
-    return
+    err = fmt.Errorf("Error opening file %v\n%v", filePath, err)
+    return err
   }
   defer rf.Close()
 
@@ -49,8 +45,8 @@ func main() {
   csvPath := csvDir + fileName(filePath) + ".csv"
   csvFile, err := os.OpenFile(csvPath, os.O_CREATE|os.O_WRONLY, 0644)
   if err != nil {
-    log.Fatalf("Error opening file %v\n%v", csvPath, err)
-    return
+    err = fmt.Errorf("Error opening file %v\n%v", csvPath, err)
+    return err
   }
   defer csvFile.Close()
 
@@ -74,7 +70,8 @@ func main() {
         EOF = true
         break
       } else if err != nil {
-        log.Fatalf("Error reading row \n%v", err)
+        err = fmt.Errorf("Error reading row \n%v", err)
+        return err
       }
     }
     //break if EOF is reached
@@ -84,9 +81,11 @@ func main() {
     //write data to csv
     err := csvW.Write(toString(&candle))
     if err != nil {
-      log.Fatalf("Error writing record to csv \n%v", err)
+      err = fmt.Errorf("Error writing record to csv \n%v", err)
+      return err
     }
   }
+  return nil
 }
 
 //input: candle
